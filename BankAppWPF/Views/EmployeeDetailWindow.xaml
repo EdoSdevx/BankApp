@@ -1,0 +1,77 @@
+<Window x:Class="BankAppWPF.Views.EmployeeDetailWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Employee Details"
+        Height="650"
+        Width="520"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Background="#F4F7FB">
+
+    <Border Margin="24" Padding="26" Background="White" CornerRadius="12">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <TextBlock Text="Employee Details"
+                               FontSize="26"
+                               FontWeight="Bold"
+                               Foreground="#17233C"/>
+                    <TextBlock x:Name="EmployeeIdText"
+                               Foreground="#64748B"
+                               Margin="0,5,0,24"/>
+
+                    <TextBlock Text="Full Name" Foreground="#64748B"/>
+                    <TextBlock x:Name="FullNameText"
+                               FontSize="17" Margin="0,4,0,16"/>
+
+                    <TextBlock Text="Email" Foreground="#64748B"/>
+                    <TextBlock x:Name="EmailText"
+                               FontSize="17" Margin="0,4,0,16"/>
+
+                    <TextBlock Text="Phone" Foreground="#64748B"/>
+                    <TextBlock x:Name="PhoneText"
+                               FontSize="17" Margin="0,4,0,16"/>
+
+                    <TextBlock Text="Branch" Foreground="#64748B"/>
+                    <TextBlock x:Name="BranchText"
+                               FontSize="17"
+                               TextWrapping="Wrap"
+                               Margin="0,4,0,16"/>
+
+                    <TextBlock Text="Role" Foreground="#64748B"/>
+                    <TextBlock x:Name="RoleText"
+                               FontSize="17"
+                               TextWrapping="Wrap"
+                               Margin="0,4,0,16"/>
+
+                    <TextBlock Text="Authorization Role"
+                               Foreground="#64748B"/>
+                    <TextBlock x:Name="AuthRoleText"
+                               FontSize="17"
+                               FontWeight="SemiBold"
+                               Margin="0,4,0,16"/>
+
+                    <TextBlock Text="Hire Date" Foreground="#64748B"/>
+                    <TextBlock x:Name="HireDateText"
+                               FontSize="17" Margin="0,4,0,16"/>
+
+                    <TextBlock x:Name="StatusMessage"
+                               Foreground="#C0392B"
+                               TextWrapping="Wrap"
+                               MinHeight="20"/>
+                </StackPanel>
+            </ScrollViewer>
+
+            <Button Grid.Row="1"
+                    Content="Close"
+                    Height="40"
+                    Margin="0,16,0,0"
+                    Click="CloseButton_Click"/>
+        </Grid>
+    </Border>
+</Window>

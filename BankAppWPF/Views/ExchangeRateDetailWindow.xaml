@@ -1,0 +1,59 @@
+<Window x:Class="BankAppWPF.Views.ExchangeRateDetailWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Exchange Rate Details"
+        Height="480"
+        Width="500"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Background="#F4F7FB">
+
+    <Border Margin="24" Padding="26" Background="White" CornerRadius="12">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0">
+                <TextBlock Text="Exchange Rate Details"
+                           FontSize="26"
+                           FontWeight="Bold"
+                           Foreground="#17233C"/>
+                <TextBlock x:Name="RateIdText"
+                           Foreground="#64748B"
+                           Margin="0,5,0,24"/>
+
+                <TextBlock Text="Currency" Foreground="#64748B"/>
+                <TextBlock x:Name="CurrencyCodeText"
+                           FontSize="17" Margin="0,4,0,16"/>
+
+                <TextBlock Text="Rate" Foreground="#64748B"/>
+                <TextBlock x:Name="RateText"
+                           FontSize="22"
+                           FontWeight="Bold"
+                           Foreground="#075889"
+                           Margin="0,4,0,16"/>
+
+                <TextBlock Text="Rate Date" Foreground="#64748B"/>
+                <TextBlock x:Name="RateDateText"
+                           FontSize="17" Margin="0,4,0,16"/>
+
+                <TextBlock Text="Source" Foreground="#64748B"/>
+                <TextBlock x:Name="SourceText"
+                           FontSize="17" Margin="0,4,0,16"/>
+
+                <TextBlock x:Name="StatusMessage"
+                           Foreground="#C0392B"
+                           TextWrapping="Wrap"
+                           MinHeight="20"/>
+            </StackPanel>
+
+            <Button Grid.Row="1"
+                    Content="Close"
+                    Height="40"
+                    Margin="0,16,0,0"
+                    Click="CloseButton_Click"/>
+        </Grid>
+    </Border>
+</Window>

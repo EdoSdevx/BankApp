@@ -1,0 +1,71 @@
+<UserControl x:Class="BankAppWPF.Views.ExchangeRatesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,0,0,12">
+            <Button Content="View Details"
+                    Height="36"
+                    Padding="16,0"
+                    Margin="0,0,10,0"
+                    Click="ViewRateDetailsButton_Click"/>
+
+            <Button Content="+ Create Rate"
+                    Height="36"
+                    Padding="16,0"
+                    Background="#075889"
+                    Foreground="White"
+                    BorderThickness="0"
+                    Click="CreateRateButton_Click"/>
+        </StackPanel>
+
+        <TextBlock x:Name="StatusMessage"
+                   Grid.Row="1"
+                   Text="Loading exchange rates..."
+                   Foreground="#64748B"
+                   Margin="0,0,0,12"
+                   TextWrapping="Wrap"/>
+
+        <DataGrid x:Name="ExchangeRatesGrid"
+                  Grid.Row="2"
+                  SelectionMode="Single"
+                  SelectionUnit="FullRow"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  CanUserAddRows="False"
+                  GridLinesVisibility="Horizontal"
+                  HeadersVisibility="Column">
+
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="ID"
+                                    Binding="{Binding RateId}"
+                                    Width="70"/>
+
+                <DataGridTextColumn Header="Currency"
+                                    Binding="{Binding CurrencyCode}"
+                                    Width="*"/>
+
+                <DataGridTextColumn Header="Rate"
+                                    Binding="{Binding Rate, StringFormat=N4}"
+                                    Width="*"/>
+
+                <DataGridTextColumn Header="Rate Date"
+                                    Binding="{Binding RateDate, StringFormat={}{0:dd.MM.yyyy HH:mm}}"
+                                    Width="2*"/>
+
+                <DataGridTextColumn Header="Source"
+                                    Binding="{Binding Source}"
+                                    Width="2*"/>
+            </DataGrid.Columns>
+        </DataGrid>
+    </Grid>
+</UserControl>

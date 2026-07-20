@@ -1,0 +1,71 @@
+<Window x:Class="BankAppWPF.Views.BillDetailWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Bill Details"
+        Height="560"
+        Width="500"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Background="#F4F7FB">
+
+    <Border Margin="24" Padding="26" Background="White" CornerRadius="12">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <TextBlock Text="Bill Details"
+                               FontSize="26"
+                               FontWeight="Bold"
+                               Foreground="#17233C"/>
+                    <TextBlock x:Name="BillIdText"
+                               Foreground="#64748B"
+                               Margin="0,5,0,24"/>
+
+                    <TextBlock Text="Customer ID" Foreground="#64748B"/>
+                    <TextBlock x:Name="CustomerIdText"
+                               FontSize="17" Margin="0,4,0,16"/>
+
+                    <TextBlock Text="Bill Type" Foreground="#64748B"/>
+                    <TextBlock x:Name="BillTypeText"
+                               FontSize="17" Margin="0,4,0,16"/>
+
+                    <TextBlock Text="Amount" Foreground="#64748B"/>
+                    <TextBlock x:Name="AmountText"
+                               FontSize="22"
+                               FontWeight="Bold"
+                               Foreground="#075889"
+                               Margin="0,4,0,16"/>
+
+                    <TextBlock Text="Due Date" Foreground="#64748B"/>
+                    <TextBlock x:Name="DueDateText"
+                               FontSize="17" Margin="0,4,0,16"/>
+
+                    <TextBlock Text="Status" Foreground="#64748B"/>
+                    <TextBlock x:Name="PaidStatusText"
+                               FontSize="17"
+                               FontWeight="SemiBold"
+                               Margin="0,4,0,16"/>
+
+                    <TextBlock Text="Paid Date" Foreground="#64748B"/>
+                    <TextBlock x:Name="PaidDateText"
+                               FontSize="17" Margin="0,4,0,16"/>
+
+                    <TextBlock x:Name="StatusMessage"
+                               Foreground="#C0392B"
+                               TextWrapping="Wrap"
+                               MinHeight="20"/>
+                </StackPanel>
+            </ScrollViewer>
+
+            <Button Grid.Row="1"
+                    Content="Close"
+                    Height="40"
+                    Margin="0,16,0,0"
+                    Click="CloseButton_Click"/>
+        </Grid>
+    </Border>
+</Window>

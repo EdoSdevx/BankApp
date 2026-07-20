@@ -1,0 +1,85 @@
+<UserControl x:Class="BankAppWPF.Views.BillsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,0,0,12">
+            <Button Content="View Details"
+                    Height="36"
+                    Padding="16,0"
+                    Margin="0,0,10,0"
+                    Click="ViewBillDetailsButton_Click"/>
+
+            <Button Content="Edit Selected"
+                    Height="36"
+                    Padding="16,0"
+                    Margin="0,0,10,0"
+                    Click="EditBillButton_Click"/>
+
+            <Button Content="+ Create Bill"
+                    Height="36"
+                    Padding="16,0"
+                    Background="#075889"
+                    Foreground="White"
+                    BorderThickness="0"
+                    Click="CreateBillButton_Click"/>
+        </StackPanel>
+
+        <TextBlock x:Name="StatusMessage"
+                   Grid.Row="1"
+                   Text="Loading bills..."
+                   Foreground="#64748B"
+                   Margin="0,0,0,12"
+                   TextWrapping="Wrap"/>
+
+        <DataGrid x:Name="BillsGrid"
+                  Grid.Row="2"
+                  SelectionMode="Single"
+                  SelectionUnit="FullRow"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  CanUserAddRows="False"
+                  GridLinesVisibility="Horizontal"
+                  HeadersVisibility="Column">
+
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Bill ID"
+                                    Binding="{Binding BillId}"
+                                    Width="80"/>
+
+                <DataGridTextColumn Header="Customer ID"
+                                    Binding="{Binding CustomerId}"
+                                    Width="100"/>
+
+                <DataGridTextColumn Header="Type"
+                                    Binding="{Binding BillType}"
+                                    Width="2*"/>
+
+                <DataGridTextColumn Header="Amount"
+                                    Binding="{Binding Amount, StringFormat=N2}"
+                                    Width="*"/>
+
+                <DataGridTextColumn Header="Currency"
+                                    Binding="{Binding CurrencyCode}"
+                                    Width="90"/>
+
+                <DataGridTextColumn Header="Due Date"
+                                    Binding="{Binding DueDate, StringFormat={}{0:dd.MM.yyyy}}"
+                                    Width="*"/>
+
+                <DataGridCheckBoxColumn Header="Paid"
+                                        Binding="{Binding IsPaid}"
+                                        Width="70"/>
+            </DataGrid.Columns>
+        </DataGrid>
+    </Grid>
+</UserControl>

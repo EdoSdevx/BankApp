@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 18
+VisualStudioVersion = 18.4.11605.240
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BankApp", "BankApp.csproj", "{1682736E-6642-893F-1D42-FEACC01CB409}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BankAppWPF", "BankAppWPF\BankAppWPF.csproj", "{DD8D9C7B-8A10-46EC-B456-60E07B7FA933}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1682736E-6642-893F-1D42-FEACC01CB409}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1682736E-6642-893F-1D42-FEACC01CB409}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1682736E-6642-893F-1D42-FEACC01CB409}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1682736E-6642-893F-1D42-FEACC01CB409}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DD8D9C7B-8A10-46EC-B456-60E07B7FA933}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DD8D9C7B-8A10-46EC-B456-60E07B7FA933}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DD8D9C7B-8A10-46EC-B456-60E07B7FA933}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DD8D9C7B-8A10-46EC-B456-60E07B7FA933}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {1251603F-BBFA-442A-BB72-4A4A2C44AE3A}
+	EndGlobalSection
+EndGlobal
