@@ -5,7 +5,7 @@ obj/
 # IDE
 .vs/
 *.user
-
+/screenshots
 # Dependencies
 node_modules/
 Client/node_modules/
