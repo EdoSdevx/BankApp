@@ -27,6 +27,9 @@ builder.Services.Configure<ResetTokenOptions>(resetTokenSection);
 var groqSection = builder.Configuration.GetSection("Groq");
 builder.Services.Configure<GroqOptions>(groqSection);
 
+var eftSwitchSection = builder.Configuration.GetSection(EftSwitchOptions.SectionName);
+builder.Services.Configure<EftSwitchOptions>(eftSwitchSection);
+
 builder.Services.AddScoped<DatabaseContext>();
 builder.Services.AddScoped<IAuthDataAccess,AuthDataAccess>();
 builder.Services.AddScoped<IAuthService,AuthService>();
@@ -58,11 +61,19 @@ builder.Services.AddScoped<ILoanDataAccess,LoanDataAccess>();
 builder.Services.AddScoped<ILoanService,LoanService>();
 builder.Services.AddScoped<ICustomerLoanDataAccess,CustomerLoanDataAccess>();
 builder.Services.AddScoped<ICustomerLoanService,CustomerLoanService>();
+builder.Services.AddScoped<IEftDataAccess,EftDataAccess>();
+builder.Services.AddScoped<IEftService,EftService>();
+builder.Services.AddScoped<IEftOutboxDataAccess,EftOutboxDataAccess>();
+builder.Services.AddHttpClient<IEftSwitchClient,EftSwitchClient>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
 
 builder.Services.AddScoped<ChatService>();
 
 builder.Services.AddHostedService<ExchangeRateUpdaterService>();
 builder.Services.AddHostedService<MonthlyLoanProcessor>();
+builder.Services.AddHostedService<EftOutboxWorker>();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>

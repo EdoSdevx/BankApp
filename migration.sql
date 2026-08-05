@@ -13,6 +13,9 @@ GO
 -- ============================================================
 -- Drop all tables
 -- ============================================================
+DROP TABLE IF EXISTS OutboxMessages;
+DROP TABLE IF EXISTS EftTransferStatusHistory;
+DROP TABLE IF EXISTS EftTransfers;
 DROP TABLE IF EXISTS PendingTransfers;
 DROP TABLE IF EXISTS Transactions_History;
 DROP TABLE IF EXISTS Transactions;
@@ -144,6 +147,74 @@ CREATE TABLE PendingTransfers (
 GO
 
 -- ============================================================
+-- EFT TABLES
+-- ============================================================
+
+CREATE TABLE EftTransfers (
+    EftTransferId int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    RequestId uniqueidentifier NOT NULL,
+    CustomerId int NOT NULL REFERENCES Customers(CustomerId),
+    SourceAccountId int NOT NULL REFERENCES Accounts(AccountId),
+    ReceiverIban nvarchar(34) NOT NULL,
+    ReceiverName nvarchar(200) NOT NULL,
+    Amount decimal(18,2) NOT NULL,
+    CurrencyCode nvarchar(3) NOT NULL REFERENCES Currencies(CurrencyCode),
+    Description nvarchar(255) NULL,
+    SenderReference varchar(64) NOT NULL,
+    CentralReference varchar(64) NULL,
+    Status nvarchar(30) NOT NULL,
+    CreatedAt datetime2 NOT NULL DEFAULT sysutcdatetime(),
+    ApprovedByEmployeeId int NULL REFERENCES Employees(EmployeeId),
+    ApprovedAt datetime2 NULL,
+    SubmittedAt datetime2 NULL,
+    CompletedAt datetime2 NULL,
+    FailureReason nvarchar(500) NULL,
+    CONSTRAINT CK_EftTransfers_Amount_Positive CHECK (Amount > 0),
+    CONSTRAINT CK_EftTransfers_Currency_TRY CHECK (CurrencyCode = 'TRY'),
+    CONSTRAINT CK_EftTransfers_Status CHECK (Status IN (
+        'PendingApproval','Queued','Submitted','Processing',
+        'Completed','Rejected','Refunded','PendingReconciliation'))
+);
+CREATE UNIQUE INDEX UX_EftTransfers_Customer_Request
+    ON EftTransfers(CustomerId,RequestId);
+CREATE UNIQUE INDEX UX_EftTransfers_SenderReference
+    ON EftTransfers(SenderReference);
+CREATE UNIQUE INDEX UX_EftTransfers_CentralReference
+    ON EftTransfers(CentralReference)
+    WHERE CentralReference IS NOT NULL;
+CREATE INDEX IX_EftTransfers_Customer_CreatedAt
+    ON EftTransfers(CustomerId,CreatedAt DESC);
+GO
+
+CREATE TABLE EftTransferStatusHistory (
+    EftTransferStatusHistoryId int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    EftTransferId int NOT NULL REFERENCES EftTransfers(EftTransferId),
+    Status nvarchar(30) NOT NULL,
+    ChangedAt datetime2 NOT NULL DEFAULT sysutcdatetime(),
+    ChangedByEmployeeId int NULL REFERENCES Employees(EmployeeId),
+    Reason nvarchar(500) NULL
+);
+CREATE INDEX IX_EftTransferStatusHistory_Transfer_ChangedAt
+    ON EftTransferStatusHistory(EftTransferId,ChangedAt);
+GO
+
+CREATE TABLE OutboxMessages (
+    OutboxMessageId int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    AggregateType nvarchar(50) NOT NULL,
+    AggregateId int NOT NULL,
+    MessageType nvarchar(100) NOT NULL,
+    CreatedAt datetime2 NOT NULL DEFAULT sysutcdatetime(),
+    ProcessedAt datetime2 NULL,
+    AttemptCount int NOT NULL DEFAULT 0,
+    LastError nvarchar(1000) NULL,
+    CONSTRAINT UQ_OutboxMessages_Aggregate_Message
+        UNIQUE(AggregateType,AggregateId,MessageType)
+);
+CREATE INDEX IX_OutboxMessages_Pending
+    ON OutboxMessages(ProcessedAt,CreatedAt);
+GO
+
+-- ============================================================
 -- LOAN TABLES
 -- ============================================================
 
@@ -203,7 +274,7 @@ CREATE TABLE LoanPayments (
 GO
 
 -- ============================================================
--- HISTORY TABLES (from original create.sql)
+-- HISTORY TABLES
 -- ============================================================
 
 CREATE TABLE Currencies_History (
@@ -878,6 +949,169 @@ BEGIN
 END;
 GO
 
+CREATE PROCEDURE sp_Customer_CreateEft
+    @RequestId uniqueidentifier,
+    @CustomerId int,
+    @SourceAccountId int,
+    @ReceiverIban nvarchar(34),
+    @ReceiverName nvarchar(200),
+    @Amount decimal(18,2),
+    @Description nvarchar(255)=NULL,
+    @SenderReference varchar(64)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    DECLARE @EftTransferId int;
+    DECLARE @SourceCustomerId int;
+    DECLARE @SourceBalance decimal(18,2);
+    DECLARE @CurrencyCode nvarchar(3);
+    DECLARE @HoldingAccountId int;
+    DECLARE @InitialStatus nvarchar(30);
+    DECLARE @ApprovalThreshold decimal(18,2)=5000;
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        SELECT @EftTransferId=EftTransferId
+        FROM EftTransfers WITH(UPDLOCK,HOLDLOCK)
+        WHERE CustomerId=@CustomerId AND RequestId=@RequestId;
+
+        IF @EftTransferId IS NOT NULL
+        BEGIN
+            IF EXISTS(
+                SELECT 1
+                FROM EftTransfers
+                WHERE EftTransferId=@EftTransferId
+                  AND (
+                      SourceAccountId<>@SourceAccountId
+                      OR ReceiverIban<>@ReceiverIban
+                      OR ReceiverName<>@ReceiverName
+                      OR Amount<>@Amount
+                      OR ISNULL(Description,'')<>ISNULL(@Description,'')
+                  ))
+                THROW 50000,'Request ID has already been used for a different EFT.',1;
+
+            COMMIT TRANSACTION;
+            RETURN;
+        END;
+
+        IF @Amount<=0
+            THROW 50000,'Amount must be greater than zero.',1;
+
+        SELECT @SourceCustomerId=CustomerId,
+               @SourceBalance=Balance,
+               @CurrencyCode=CurrencyCode
+        FROM Accounts WITH(UPDLOCK,HOLDLOCK)
+        WHERE AccountId=@SourceAccountId AND IsActive=1;
+
+        IF @SourceCustomerId IS NULL OR @SourceCustomerId<>@CustomerId
+            THROW 50000,'Source account does not belong to you or is inactive.',1;
+
+        IF @CurrencyCode<>'TRY'
+            THROW 50000,'EFT currently supports TRY accounts only.',1;
+
+        IF @SourceBalance<@Amount
+            THROW 50000,'Insufficient balance.',1;
+
+        SELECT TOP(1) @HoldingAccountId=a.AccountId
+        FROM Accounts a WITH(UPDLOCK,HOLDLOCK)
+        INNER JOIN Customers c ON c.CustomerId=a.CustomerId
+        WHERE c.Email='system@bankapp.com'
+          AND a.CurrencyCode=@CurrencyCode
+          AND a.IsActive=1
+        ORDER BY a.AccountId;
+
+        IF @HoldingAccountId IS NULL
+            THROW 50000,'System holding account is not configured.',1;
+
+        SET @InitialStatus=CASE
+            WHEN @Amount>@ApprovalThreshold THEN 'PendingApproval'
+            ELSE 'Queued'
+        END;
+
+        INSERT INTO EftTransfers(
+            RequestId,CustomerId,SourceAccountId,ReceiverIban,ReceiverName,
+            Amount,CurrencyCode,Description,SenderReference,Status)
+        VALUES(
+            @RequestId,@CustomerId,@SourceAccountId,@ReceiverIban,@ReceiverName,
+            @Amount,@CurrencyCode,@Description,@SenderReference,@InitialStatus);
+
+        SET @EftTransferId=SCOPE_IDENTITY();
+
+        UPDATE Accounts
+        SET Balance=Balance-@Amount
+        WHERE AccountId=@SourceAccountId;
+
+        UPDATE Accounts
+        SET Balance=Balance+@Amount
+        WHERE AccountId=@HoldingAccountId;
+
+        INSERT INTO Transactions(
+            AccountId,TransactionType,Amount,CurrencyCode,
+            TransactionDate,Description,RelatedAccountId)
+        VALUES(
+            @SourceAccountId,'EFT Reservation',@Amount,@CurrencyCode,
+            SYSUTCDATETIME(),CONCAT('EFT reservation - ',@SenderReference),@HoldingAccountId);
+
+        INSERT INTO Transactions(
+            AccountId,TransactionType,Amount,CurrencyCode,
+            TransactionDate,Description,RelatedAccountId)
+        VALUES(
+            @HoldingAccountId,'EFT Hold',@Amount,@CurrencyCode,
+            SYSUTCDATETIME(),CONCAT('EFT hold - ',@SenderReference),@SourceAccountId);
+
+        INSERT INTO EftTransferStatusHistory(EftTransferId,Status)
+        VALUES(@EftTransferId,@InitialStatus);
+
+        IF @InitialStatus='Queued'
+        BEGIN
+            INSERT INTO OutboxMessages(AggregateType,AggregateId,MessageType)
+            VALUES('EftTransfer',@EftTransferId,'SubmitEft');
+        END;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT>0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+CREATE PROCEDURE sp_Customer_Efts
+    @CustomerId int
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT EftTransferId,RequestId,CustomerId,SourceAccountId,
+           ReceiverIban,ReceiverName,Amount,CurrencyCode,Description,
+           SenderReference,CentralReference,Status,CreatedAt,
+           ApprovedAt,SubmittedAt,CompletedAt,FailureReason
+    FROM EftTransfers
+    WHERE CustomerId=@CustomerId
+    ORDER BY CreatedAt DESC,EftTransferId DESC;
+END;
+GO
+
+CREATE PROCEDURE sp_Customer_EftDetail
+    @CustomerId int,
+    @EftTransferId int
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT EftTransferId,RequestId,CustomerId,SourceAccountId,
+           ReceiverIban,ReceiverName,Amount,CurrencyCode,Description,
+           SenderReference,CentralReference,Status,CreatedAt,
+           ApprovedAt,SubmittedAt,CompletedAt,FailureReason
+    FROM EftTransfers
+    WHERE EftTransferId=@EftTransferId AND CustomerId=@CustomerId;
+END;
+GO
+
 -- ============================================================
 -- SPs — Approval Flow
 -- ============================================================
@@ -943,6 +1177,338 @@ BEGIN
     LEFT JOIN Customers tgt ON ta.CustomerId=tgt.CustomerId
     WHERE pt.Status='Pending'
     ORDER BY pt.CreatedAt DESC;
+END;
+GO
+
+CREATE PROCEDURE sp_Admin_PendingEfts
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT e.EftTransferId,e.CustomerId,e.SourceAccountId,
+           c.FirstName AS CustomerFirstName,c.LastName AS CustomerLastName,
+           e.ReceiverIban,e.ReceiverName,e.Amount,e.CurrencyCode,
+           e.Description,e.SenderReference,e.Status,e.CreatedAt
+    FROM EftTransfers e
+    INNER JOIN Customers c ON c.CustomerId=e.CustomerId
+    WHERE e.Status='PendingApproval'
+    ORDER BY e.CreatedAt,e.EftTransferId;
+END;
+GO
+
+CREATE PROCEDURE sp_Admin_ApproveEft
+    @EftTransferId int,
+    @EmployeeId int
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    DECLARE @CustomerId int;
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        IF NOT EXISTS(SELECT 1 FROM Employees WHERE EmployeeId=@EmployeeId)
+            THROW 50000,'Employee not found.',1;
+
+        SELECT @CustomerId=CustomerId
+        FROM EftTransfers WITH(UPDLOCK,HOLDLOCK)
+        WHERE EftTransferId=@EftTransferId AND Status='PendingApproval';
+
+        IF @CustomerId IS NULL
+            THROW 50000,'Pending EFT not found or already processed.',1;
+
+        UPDATE EftTransfers
+        SET Status='Queued',
+            ApprovedByEmployeeId=@EmployeeId,
+            ApprovedAt=SYSUTCDATETIME(),
+            FailureReason=NULL
+        WHERE EftTransferId=@EftTransferId;
+
+        INSERT INTO EftTransferStatusHistory(
+            EftTransferId,Status,ChangedByEmployeeId)
+        VALUES(@EftTransferId,'Queued',@EmployeeId);
+
+        INSERT INTO OutboxMessages(AggregateType,AggregateId,MessageType)
+        VALUES('EftTransfer',@EftTransferId,'SubmitEft');
+
+        COMMIT TRANSACTION;
+
+        SELECT EftTransferId,RequestId,CustomerId,SourceAccountId,
+               ReceiverIban,ReceiverName,Amount,CurrencyCode,Description,
+               SenderReference,CentralReference,Status,CreatedAt,
+               ApprovedAt,SubmittedAt,CompletedAt,FailureReason
+        FROM EftTransfers
+        WHERE EftTransferId=@EftTransferId;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT>0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+CREATE PROCEDURE sp_Admin_RejectEft
+    @EftTransferId int,
+    @EmployeeId int,
+    @Reason nvarchar(500)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    DECLARE @CustomerId int;
+    DECLARE @SourceAccountId int;
+    DECLARE @Amount decimal(18,2);
+    DECLARE @CurrencyCode nvarchar(3);
+    DECLARE @SenderReference varchar(64);
+    DECLARE @HoldingAccountId int;
+    DECLARE @HoldingBalance decimal(18,2);
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        IF NOT EXISTS(SELECT 1 FROM Employees WHERE EmployeeId=@EmployeeId)
+            THROW 50000,'Employee not found.',1;
+
+        SELECT @CustomerId=CustomerId,
+               @SourceAccountId=SourceAccountId,
+               @Amount=Amount,
+               @CurrencyCode=CurrencyCode,
+               @SenderReference=SenderReference
+        FROM EftTransfers WITH(UPDLOCK,HOLDLOCK)
+        WHERE EftTransferId=@EftTransferId AND Status='PendingApproval';
+
+        IF @CustomerId IS NULL
+            THROW 50000,'Pending EFT not found or already processed.',1;
+
+        IF NOT EXISTS(
+            SELECT 1
+            FROM Accounts WITH(UPDLOCK,HOLDLOCK)
+            WHERE AccountId=@SourceAccountId)
+            THROW 50000,'Source account no longer exists.',1;
+
+        SELECT TOP(1)
+               @HoldingAccountId=a.AccountId,
+               @HoldingBalance=a.Balance
+        FROM Accounts a WITH(UPDLOCK,HOLDLOCK)
+        INNER JOIN Customers c ON c.CustomerId=a.CustomerId
+        WHERE c.Email='system@bankapp.com'
+          AND a.CurrencyCode=@CurrencyCode
+          AND a.IsActive=1
+        ORDER BY a.AccountId;
+
+        IF @HoldingAccountId IS NULL
+            THROW 50000,'System holding account is not configured.',1;
+
+        IF @HoldingBalance<@Amount
+            THROW 50000,'System holding balance is inconsistent.',1;
+
+        UPDATE Accounts
+        SET Balance=Balance-@Amount
+        WHERE AccountId=@HoldingAccountId;
+
+        UPDATE Accounts
+        SET Balance=Balance+@Amount
+        WHERE AccountId=@SourceAccountId;
+
+        INSERT INTO Transactions(
+            AccountId,TransactionType,Amount,CurrencyCode,
+            TransactionDate,Description,RelatedAccountId)
+        VALUES(
+            @SourceAccountId,'EFT Refund',@Amount,@CurrencyCode,
+            SYSUTCDATETIME(),CONCAT('EFT rejected - ',@SenderReference),@HoldingAccountId);
+
+        INSERT INTO Transactions(
+            AccountId,TransactionType,Amount,CurrencyCode,
+            TransactionDate,Description,RelatedAccountId)
+        VALUES(
+            @HoldingAccountId,'EFT Release',@Amount,@CurrencyCode,
+            SYSUTCDATETIME(),CONCAT('EFT released - ',@SenderReference),@SourceAccountId);
+
+        UPDATE EftTransfers
+        SET Status='Rejected',FailureReason=@Reason
+        WHERE EftTransferId=@EftTransferId;
+
+        INSERT INTO EftTransferStatusHistory(
+            EftTransferId,Status,ChangedByEmployeeId,Reason)
+        VALUES(@EftTransferId,'Rejected',@EmployeeId,@Reason);
+
+        COMMIT TRANSACTION;
+
+        SELECT EftTransferId,RequestId,CustomerId,SourceAccountId,
+               ReceiverIban,ReceiverName,Amount,CurrencyCode,Description,
+               SenderReference,CentralReference,Status,CreatedAt,
+               ApprovedAt,SubmittedAt,CompletedAt,FailureReason
+        FROM EftTransfers
+        WHERE EftTransferId=@EftTransferId;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT>0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+-- ============================================================
+-- SPs — EFT OUTBOX
+-- ============================================================
+
+CREATE PROCEDURE sp_EftOutbox_Pending
+    @BatchSize int=10
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF @BatchSize<1 SET @BatchSize=1;
+    IF @BatchSize>100 SET @BatchSize=100;
+
+    SELECT TOP(@BatchSize)
+           o.OutboxMessageId,
+           o.AggregateId AS EftTransferId,
+           o.AttemptCount,
+           e.SenderReference,
+           e.ReceiverIban,
+           e.ReceiverName,
+           e.Amount,
+           e.CurrencyCode,
+           e.Description
+    FROM OutboxMessages o WITH(READPAST)
+    INNER JOIN EftTransfers e ON e.EftTransferId=o.AggregateId
+    WHERE o.AggregateType='EftTransfer'
+      AND o.MessageType='SubmitEft'
+      AND o.ProcessedAt IS NULL
+      AND e.Status='Queued'
+    ORDER BY o.CreatedAt,o.OutboxMessageId;
+END;
+GO
+
+CREATE PROCEDURE sp_EftOutbox_MarkSubmitted
+    @OutboxMessageId int,
+    @CentralReference varchar(64)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    DECLARE @EftTransferId int;
+    DECLARE @ProcessedAt datetime2;
+    DECLARE @Status nvarchar(30);
+    DECLARE @ExistingCentralReference varchar(64);
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        SELECT @EftTransferId=AggregateId,
+               @ProcessedAt=ProcessedAt
+        FROM OutboxMessages WITH(UPDLOCK,HOLDLOCK)
+        WHERE OutboxMessageId=@OutboxMessageId
+          AND AggregateType='EftTransfer'
+          AND MessageType='SubmitEft';
+
+        IF @EftTransferId IS NULL
+            THROW 50000,'EFT outbox message was not found.',1;
+
+        IF @ProcessedAt IS NOT NULL
+        BEGIN
+            COMMIT TRANSACTION;
+            RETURN;
+        END;
+
+        SELECT @Status=Status,
+               @ExistingCentralReference=CentralReference
+        FROM EftTransfers WITH(UPDLOCK,HOLDLOCK)
+        WHERE EftTransferId=@EftTransferId;
+
+        IF @Status='Queued'
+        BEGIN
+            UPDATE EftTransfers
+            SET Status='Submitted',
+                CentralReference=@CentralReference,
+                SubmittedAt=SYSUTCDATETIME(),
+                FailureReason=NULL
+            WHERE EftTransferId=@EftTransferId;
+
+            INSERT INTO EftTransferStatusHistory(EftTransferId,Status)
+            VALUES(@EftTransferId,'Submitted');
+        END
+        ELSE IF @Status<>'Submitted'
+             OR ISNULL(@ExistingCentralReference,'')<>@CentralReference
+            THROW 50000,'EFT is not in a state that can be marked as submitted.',1;
+
+        UPDATE OutboxMessages
+        SET ProcessedAt=SYSUTCDATETIME(),
+            AttemptCount=AttemptCount+1,
+            LastError=NULL
+        WHERE OutboxMessageId=@OutboxMessageId;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT>0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+CREATE PROCEDURE sp_EftOutbox_MarkFailed
+    @OutboxMessageId int,
+    @Error nvarchar(1000),
+    @MaxAttempts int
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    DECLARE @EftTransferId int;
+    DECLARE @AttemptCount int;
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        SELECT @EftTransferId=AggregateId,
+               @AttemptCount=AttemptCount+1
+        FROM OutboxMessages WITH(UPDLOCK,HOLDLOCK)
+        WHERE OutboxMessageId=@OutboxMessageId
+          AND AggregateType='EftTransfer'
+          AND MessageType='SubmitEft'
+          AND ProcessedAt IS NULL;
+
+        IF @EftTransferId IS NULL
+        BEGIN
+            COMMIT TRANSACTION;
+            RETURN;
+        END;
+
+        UPDATE OutboxMessages
+        SET AttemptCount=@AttemptCount,
+            LastError=@Error
+        WHERE OutboxMessageId=@OutboxMessageId;
+
+        IF @AttemptCount>=@MaxAttempts
+        BEGIN
+            UPDATE EftTransfers
+            SET Status='PendingReconciliation',
+                FailureReason=@Error
+            WHERE EftTransferId=@EftTransferId
+              AND Status='Queued';
+
+            IF @@ROWCOUNT=1
+            BEGIN
+                INSERT INTO EftTransferStatusHistory(
+                    EftTransferId,Status,Reason)
+                VALUES(
+                    @EftTransferId,'PendingReconciliation',@Error);
+            END;
+        END;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT>0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
 END;
 GO
 

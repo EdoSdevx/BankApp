@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BankApp", "BankApp.csproj",
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BankAppWPF", "BankAppWPF\BankAppWPF.csproj", "{DD8D9C7B-8A10-46EC-B456-60E07B7FA933}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TcmbSimulator", "TcmbSimulator\TcmbSimulator.csproj", "{97F03E6F-E05E-455C-8BA9-E370B1D58CF2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{DD8D9C7B-8A10-46EC-B456-60E07B7FA933}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DD8D9C7B-8A10-46EC-B456-60E07B7FA933}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DD8D9C7B-8A10-46EC-B456-60E07B7FA933}.Release|Any CPU.Build.0 = Release|Any CPU
+		{97F03E6F-E05E-455C-8BA9-E370B1D58CF2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{97F03E6F-E05E-455C-8BA9-E370B1D58CF2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{97F03E6F-E05E-455C-8BA9-E370B1D58CF2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{97F03E6F-E05E-455C-8BA9-E370B1D58CF2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
