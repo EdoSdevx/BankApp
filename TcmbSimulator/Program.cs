@@ -6,10 +6,8 @@ using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-
 builder.Services.AddControllers();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+
 builder.Services.AddOpenApi();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -47,9 +45,17 @@ builder.Services.AddSwaggerGen(options =>
 });
 builder.Services.Configure<BankAuthenticationOptions>(
     builder.Configuration.GetSection(BankAuthenticationOptions.SectionName));
+builder.Services.Configure<RecipientRoutingOptions>(
+    builder.Configuration.GetSection(RecipientRoutingOptions.SectionName));
 builder.Services.AddScoped<TcmbDatabaseContext>();
 builder.Services.AddScoped<IPaymentOrderDataAccess, PaymentOrderDataAccess>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<IRoutingOutboxDataAccess, RoutingOutboxDataAccess>();
+builder.Services.AddHttpClient<IRecipientBankClient, RecipientBankClient>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+builder.Services.AddHostedService<RecipientRoutingWorker>();
 
 var app = builder.Build();
 

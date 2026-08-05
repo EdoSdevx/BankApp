@@ -134,12 +134,21 @@
   - [x] Define the BankApp-to-switch request and response contracts
   - [x] Create the independent TCMB SQL Server database schema and participant seed
   - [x] Create the TCMB simulator project, authentication, persistence, and acceptance endpoint
-- [ ] Create an independent recipient-bank API and database
+- [x] Create an independent recipient-bank API and database
+  - [x] Add the minimal recipient-account, incoming-payment, and transaction schema
+  - [x] Add atomic idempotent recipient credit persistence
+  - [x] Add TCMB HMAC authentication and one incoming-payment endpoint
+  - [x] Align BankApp2 configuration, port, Swagger, and project boundaries
+  - [x] Source-review the TCMB-to-BankApp2 contract
 - [ ] Add transactional outbox/inbox processing and idempotency at every network boundary
   - [x] Add BankApp outbox read, success, and failure procedures
   - [x] Add the signed BankApp-to-TCMB HTTP client
   - [x] Add and register the BankApp EFT outbox worker
   - [x] Source-review the sender and receiver signing contracts
+  - [x] Add TCMB route-payment outbox persistence
+  - [x] Add the signed TCMB-to-BankApp2 HTTP client
+  - [x] Add and register the TCMB routing worker
+  - [x] Source-review TCMB and BankApp2 signing and response contracts
 - [ ] Add authenticated callbacks or status polling between the three systems
 - [ ] Add customer status history, refund handling, audit records, and SignalR notifications
 - [ ] Verify successful, rejected, duplicated, timed-out, and retried transfer scenarios
@@ -168,4 +177,8 @@
 - TCMB now exposes Swagger UI in development and documents all three bank-authentication headers through its Authorize dialog.
 - BankApp now polls queued `SubmitEft` outbox messages, signs the exact serialized JSON body, and submits it to TCMB with the three authentication headers.
 - A TCMB acceptance updates the BankApp EFT to `Submitted` and completes the outbox message in one local transaction; failed calls remain retryable and move to `PendingReconciliation` after the configured attempt limit.
-- TCMB acceptance does not route or credit the recipient bank yet. Application build, SQL execution, and runtime request verification remain with the user.
+- BankApp2 now exposes one authenticated incoming-payment endpoint on port `5006`, with a seeded recipient account and idempotent balance credit keyed by TCMB central reference.
+- BankApp2 stores both completed and rejected incoming payments; only completed payments update the recipient balance and create a recipient transaction.
+- TCMB acceptance now creates a `RoutePayment` outbox message in the same local transaction; its routing worker signs the exact BankApp2 request, stores `Routing`, and records `Completed`, `Rejected`, retry failures, or `PendingReconciliation`.
+- TCMB and BankApp2 share a separate per-recipient-bank HMAC secret; a missing secret pauses that bank's messages without consuming attempts.
+- BankApp callbacks, holding-account settlement/refunds, and end-to-end runtime verification remain unfinished. Application build, SQL execution, and runtime request verification remain with the user.

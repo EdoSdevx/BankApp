@@ -7,7 +7,7 @@
     <UserSecretsId>BankApp-03ae4292-14ee-40aa-a7e8-202089646338</UserSecretsId>
 
 	<DefaultItemExcludes>
-	$(DefaultItemExcludes);BankAppWPF\**;TcmbSimulator\**
+	$(DefaultItemExcludes);BankAppWPF\**;TcmbSimulator\**;BankApp2\**
 	</DefaultItemExcludes>
   </PropertyGroup>
 
